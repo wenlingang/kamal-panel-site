@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>kamal-panel — Kamal 部署的只读控制面板</title>
+  <meta name="description" content="一张「应用 × 主机」总览表，几秒钟回答有没有哪个 Kamal 应用出问题。自托管、基本只读、通过 SSH 读取。">
+  <meta property="og:title" content="kamal-panel">
+  <meta property="og:description" content="一张表，告诉你哪个 Kamal 应用出了问题。">
+  <meta property="og:image" content="https://wenlingang.github.io/kamal-panel-site/assets/screenshots/overview-light.png">
+  <meta name="color-scheme" content="light dark">
+  <link rel="alternate" hreflang="en" href="../">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/tokens.css">
+  <link rel="stylesheet" href="../assets/site.css">
+  <script src="../assets/copy.js" defer></script>
+</head>
+<body>
+  <header class="site-nav">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="../assets/icon.svg" alt="">kamal-panel</a>
+      <a class="hide-sm" href="https://github.com/wenlingang/kamal-panel/blob/main/README.zh-CN.md">文档</a>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="../" hreflang="en" lang="en">English</a>
+    </div>
+  </header>
+
+  <main>
+    <section id="hero" class="hero">
+      <div class="wrap">
+        <h1>一张表，告诉你哪个 Kamal 应用出了问题。</h1>
+        <p class="lead">kamal-panel 通过 SSH 读取 Kamal 本来就会留在服务器上的状态——<code>docker ps</code>、<code>kamal-proxy list</code>——渲染成一张「应用 × 主机」总览表。部署仍然照旧由 CI 执行 <code>kamal deploy</code>。</p>
+        <p class="note">面板和你的应用一样用 Kamal 部署。密钥和第一个 admin 账号怎么准备，见安装说明。</p>
+        <div class="command">
+          <pre id="install-command">git clone https://github.com/wenlingang/kamal-panel.git && cd kamal-panel
+bin/rails db:encryption:init   # 妥善保管生成的密钥
+# 在 config/deploy.yml 里改好 image、servers.web、proxy.host
+bin/kamal setup</pre>
+          <button type="button" data-copy="install-command" data-label="复制" data-copied="已复制" data-failed="复制失败">复制</button>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/wenlingang/kamal-panel">在 GitHub 上查看</a>
+          <a class="button" href="https://github.com/wenlingang/kamal-panel/blob/main/README.zh-CN.md">安装说明</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="overview">
+      <div class="wrap">
+        <figure class="shot">
+          <picture>
+            <source srcset="../assets/screenshots/overview-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="../assets/screenshots/overview-light.png" width="1440" height="680" alt="总览表：五个应用分布在各自的主机上，其中一个版本漂移、一个不健康、一个不可达，另外两个正常。">
+          </picture>
+        </figure>
+      </div>
+    </section>
+
+    <section id="what">
+      <div class="wrap">
+        <h2>它是什么，不是什么</h2>
+        <div class="compare">
+          <div>
+            <h3>它是</h3>
+            <ul>
+              <li>一个基本只读的视图，覆盖每台主机上的每个 Kamal 应用。</li>
+              <li>出问题时回滚、重启、停止、启动、解锁的地方。</li>
+              <li>自托管：单容器、SQLite，不需要 Redis，也不需要 Postgres。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>它不是</h3>
+            <ul>
+              <li>Kamal 的替代品——它调用的就是你在用的那个 <code>kamal</code> CLI。</li>
+              <li>部署流水线——部署仍然留在 CI 里。</li>
+              <li>指标或日志汇聚平台。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>为出故障的那一刻而做</h2>
+        <div class="showcase">
+          <div class="showcase-row">
+            <div>
+              <h3>比用户先发现版本漂移</h3>
+              <p>只要有一台主机还停在旧版本，整个应用就变成琥珀色。不健康的容器、连不上的机器各有各的颜色。</p>
+            </div>
+            <figure class="shot">
+              <picture>
+                <source srcset="../assets/screenshots/detail-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="../assets/screenshots/detail-light.png" alt="某个应用的主机状态表：两台主机跑着不同版本。">
+              </picture>
+            </figure>
+          </div>
+          <div class="showcase-row">
+            <div>
+              <h3>知道谁部署了什么</h3>
+              <p>pre-deploy 和 post-deploy 两个 hook 会上报执行人、命令，以及失败的部署。没接 hook，面板也会在看到版本变化时记下一次部署。</p>
+            </div>
+            <figure class="shot">
+              <picture>
+                <source srcset="../assets/screenshots/deploys-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="../assets/screenshots/deploys-light.png" alt="部署历史表，包含 hook 上报与面板推断两种记录。">
+              </picture>
+            </figure>
+          </div>
+        </div>
+        <ul class="grid">
+          <li class="card"><h3>漂移与健康</h3><p>版本漂移、不健康的容器、不可达的主机，一眼看清。</p></li>
+          <li class="card"><h3>部署历史</h3><p>来自你的 hook，或由面板在版本变化时推断。</p></li>
+          <li class="card"><h3>就地处理</h3><p>通过 <code>kamal</code> CLI 回滚、重启、停止、启动、强制解锁，每次操作都有审计记录。</p></li>
+          <li class="card"><h3>三种角色</h3><p>admin、developer 和 ops。developer 只能操作自己所属的应用。</p></li>
+          <li class="card"><h3>凭据只写</h3><p>SSH 私钥与 registry 密码加密存储，保存后不再显示。</p></li>
+          <li class="card"><h3>中文与 English</h3><p>整个界面连同邮件，都有简体中文和英文两种语言。</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="security" class="security">
+      <div class="wrap">
+        <h2>把它当作一把 SSH 私钥</h2>
+        <ol>
+          <li><strong>面板的安全级别，等于它所管理的每一台服务器的安全级别。</strong>任何能访问面板并读到它数据库的人，都可以间接操作你的基础设施。</li>
+          <li><strong>添加应用等于执行代码。</strong>解析 <code>deploy.yml</code> 会求值 ERB，和 Kamal 自己一样。只让可信的 admin 添加应用。</li>
+          <li><strong>私钥只写。</strong>用 Active Record encryption 加密存储，界面只显示指纹，永远不显示私钥本身。</li>
+        </ol>
+        <a href="https://github.com/wenlingang/kamal-panel/blob/main/README.zh-CN.md">阅读完整的安全说明</a>
+      </div>
+    </section>
+
+    <section id="availability" class="availability">
+      <div class="wrap">
+        <p>以 <a href="https://github.com/wenlingang/kamal-panel/blob/main/LICENSE">MIT 协议</a>开源，可以免费使用、修改和自托管。给仓库点个 star，就能跟进后续更新。</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>kamal-panel</span>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="https://kamal-deploy.org/">Kamal</a>
+      <a href="https://github.com/wenlingang/kamal-panel/blob/main/LICENSE">MIT 协议</a>
+    </div>
+  </footer>
+</body>
+</html>

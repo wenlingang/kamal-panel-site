@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>kamal-panel — a read-only dashboard for Kamal deployments</title>
+  <meta name="description" content="One apps × hosts table that tells you, in seconds, whether any Kamal app is broken. Self-hosted, read-mostly, over SSH.">
+  <meta property="og:title" content="kamal-panel">
+  <meta property="og:description" content="One table that tells you if any Kamal app is broken.">
+  <meta property="og:image" content="https://wenlingang.github.io/kamal-panel-site/assets/screenshots/overview-light.png">
+  <meta name="color-scheme" content="light dark">
+  <link rel="alternate" hreflang="zh-CN" href="zh-CN/">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/tokens.css">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/copy.js" defer></script>
+</head>
+<body>
+  <header class="site-nav">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/icon.svg" alt="">kamal-panel</a>
+      <a class="hide-sm" href="https://github.com/wenlingang/kamal-panel#readme">Docs</a>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="zh-CN/" hreflang="zh-CN" lang="zh-CN">中文</a>
+    </div>
+  </header>
+
+  <main>
+    <section id="hero" class="hero">
+      <div class="wrap">
+        <h1>One table that tells you if any Kamal app is broken.</h1>
+        <p class="lead">kamal-panel reads the state Kamal already leaves on your servers — <code>docker ps</code>, <code>kamal-proxy list</code> — over SSH, and shows it as a single apps × hosts table. Deploys still run from your CI with <code>kamal deploy</code>.</p>
+        <p class="note">The panel deploys with Kamal, just like your apps. The install guide covers secrets and the first admin account.</p>
+        <div class="command">
+          <pre id="install-command">git clone https://github.com/wenlingang/kamal-panel.git && cd kamal-panel
+bin/rails db:encryption:init   # keep these keys safe
+# set image, servers.web and proxy.host in config/deploy.yml
+bin/kamal setup</pre>
+          <button type="button" data-copy="install-command" data-label="Copy" data-copied="Copied" data-failed="Copy failed">Copy</button>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/wenlingang/kamal-panel">View on GitHub</a>
+          <a class="button" href="https://github.com/wenlingang/kamal-panel#deploying-the-panel-itself">Install guide</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="overview">
+      <div class="wrap">
+        <figure class="shot">
+          <picture>
+            <source srcset="assets/screenshots/overview-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="assets/screenshots/overview-light.png" width="1440" height="680" alt="The overview table: five apps across their hosts — one drifting, one unhealthy, one unreachable and two healthy.">
+          </picture>
+        </figure>
+      </div>
+    </section>
+
+    <section id="what">
+      <div class="wrap">
+        <h2>What it is, and what it isn't</h2>
+        <div class="compare">
+          <div>
+            <h3>It is</h3>
+            <ul>
+              <li>A mostly read-only view of every Kamal app on every host.</li>
+              <li>The place to roll back, restart, stop, start or unlock when something is wrong.</li>
+              <li>Self-hosted: one container, SQLite, no Redis, no Postgres.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>It isn't</h3>
+            <ul>
+              <li>A replacement for Kamal — it calls the same <code>kamal</code> CLI you already use.</li>
+              <li>A deploy pipeline — deploys stay in your CI.</li>
+              <li>A metrics or log aggregation platform.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>Built for the moment something breaks</h2>
+        <div class="showcase">
+          <div class="showcase-row">
+            <div>
+              <h3>See drift before your users do</h3>
+              <p>When one host is still on the old version, the whole app turns amber. Unhealthy containers and unreachable machines each get their own colour.</p>
+            </div>
+            <figure class="shot">
+              <picture>
+                <source srcset="assets/screenshots/detail-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="assets/screenshots/detail-light.png" alt="The host status table of one app: two hosts running different versions.">
+              </picture>
+            </figure>
+          </div>
+          <div class="showcase-row">
+            <div>
+              <h3>Know who deployed what</h3>
+              <p>Pre-deploy and post-deploy hooks report the person, the command and failed deploys. Without the hook, the panel still records a deploy whenever it sees the version change.</p>
+            </div>
+            <figure class="shot">
+              <picture>
+                <source srcset="assets/screenshots/deploys-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="assets/screenshots/deploys-light.png" alt="The deploy history table with hook-reported and panel-inferred rows.">
+              </picture>
+            </figure>
+          </div>
+        </div>
+        <ul class="grid">
+          <li class="card"><h3>Drift and health</h3><p>Version drift, unhealthy containers and unreachable hosts, at a glance.</p></li>
+          <li class="card"><h3>Deploy history</h3><p>From your hook, or inferred by the panel when versions change.</p></li>
+          <li class="card"><h3>Fix in place</h3><p>Roll back, restart, stop, start and force-unlock through the <code>kamal</code> CLI. Every action is audited.</p></li>
+          <li class="card"><h3>Three roles</h3><p>admin, developer and ops. Developers act only on the apps they belong to.</p></li>
+          <li class="card"><h3>Write-only credentials</h3><p>SSH keys and registry passwords are encrypted at rest and never shown again after saving.</p></li>
+          <li class="card"><h3>English and 中文</h3><p>The whole interface, emails included, in English and Simplified Chinese.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="security" class="security">
+      <div class="wrap">
+        <h2>Treat it like an SSH key</h2>
+        <ol>
+          <li><strong>The panel is as secure as the servers it manages.</strong> Anyone who can reach it and read its database can act on your infrastructure.</li>
+          <li><strong>Adding an app runs code.</strong> Parsing <code>deploy.yml</code> evaluates ERB, just as Kamal does. Only trusted admins should add apps.</li>
+          <li><strong>Keys are write-only.</strong> Stored with Active Record encryption; the UI shows a fingerprint, never the key.</li>
+        </ol>
+        <a href="https://github.com/wenlingang/kamal-panel#readme">Read the full security notes</a>
+      </div>
+    </section>
+
+    <section id="availability" class="availability">
+      <div class="wrap">
+        <p>Open source under the <a href="https://github.com/wenlingang/kamal-panel/blob/main/LICENSE">MIT license</a>. Free to use, modify and self-host — star the repository to follow along.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>kamal-panel</span>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="https://kamal-deploy.org/">Kamal</a>
+      <a href="https://github.com/wenlingang/kamal-panel/blob/main/LICENSE">MIT License</a>
+    </div>
+  </footer>
+</body>
+</html>

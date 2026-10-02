@@ -1,0 +1,149 @@
+/* 由 script/site/sync_tokens 从 app/assets/stylesheets/application.css 生成，不要手改。 */
+
+:root {
+  --surface: #f6f4ef;
+  --ink: #2a2724;
+  --ink-muted: #6b645b;
+  --rule: #e4dfd4;
+  --flash-bg: #eeeae1;
+  --brand: #f0a500;
+  --mark-tile: #2a2724;
+  --mark-on: #ffffff;
+  --mark-gold: #f0a500;
+  --output-bg: #221f1c;
+  --output-ink: #e8e6e1;
+  --output-rule: #221f1c;
+  --action: #1462b8;
+  --action-fill: #1462b8;
+  --action-ink: #ffffff;
+  --action-rule: #0f4f96;
+  --field-bg: #ffffff;
+  --field-ink: #2a2724;
+  --field-rule: #c6bfb2;
+  --field-focus: #1462b8;
+  --card-bg: #ffffff;
+  --card-hover: #faf8f4;
+  --btn-bg: #ffffff;
+  --btn-ink: #2a2724;
+  --btn-rule: #d5cec1;
+  --danger-ink: #a3231b;
+  --danger-rule: #d8a19d;
+  --drift-bg: #fff3e0;
+  --drift-ink: #8a4b00;
+  --drift-rule: #f0c080;
+  --drift-edge: #d98a2b;
+  --unhealthy-bg: #fdeceb;
+  --unhealthy-ink: #991c14;
+  --unhealthy-rule: #f2b0ab;
+  --unhealthy-edge: #c0392b;
+  --unreachable-bg: #eae6dd;
+  --unreachable-ink: #4a453e;
+  --unreachable-rule: #cfc8ba;
+  --unreachable-edge: #8d857a;
+  --ok-bg: #e6f2e8;
+  --ok-ink: #1d5c34;
+  --ok-rule: #a9d3b3;
+  --ok-edge: #2f8a4e;
+  --unknown-bg: #f0eee9;
+  --unknown-ink: #67615a;
+  --unknown-rule: #d8d5cf;
+  --unknown-edge: #b3aca2;
+  --ring: 0 0 0 3px rgba(20, 98, 184, 0.35);
+  --shadow-xs: 0 1px 2px rgba(42, 39, 36, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(42, 39, 36, 0.1), 0 2px 4px -2px rgba(42, 39, 36, 0.1);
+  --popover-bg: #ffffff;
+  --accent-bg: #f1eee8;
+  --lift-raised: 0 1px 2px rgba(42, 39, 36, 0.05), 0 10px 28px rgba(42, 39, 36, 0.07);
+  --card-raised: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1c1a18;
+    --ink: #e9e5dd;
+    --ink-muted: #a39b90;
+    --rule: #38342f;
+    --flash-bg: #2b2825;
+    --brand: #f5b942;
+    --mark-tile: #38342f;
+    --mark-on: #f6f4ef;
+    --mark-gold: #f5b942;
+    --output-bg: #131211;
+    --output-ink: #e8e6e1;
+    --output-rule: #38342f;
+    --action: #8ab4f8;
+    --action-fill: #2f6fd0;
+    --action-ink: #ffffff;
+    --action-rule: #1f57a8;
+    --field-bg: #26231f;
+    --field-ink: #e9e5dd;
+    --field-rule: #55504a;
+    --field-focus: #8ab4f8;
+    --card-bg: #26231f;
+    --card-hover: #2e2a26;
+    --btn-bg: #2b2825;
+    --btn-ink: #e9e5dd;
+    --btn-rule: #4b463f;
+    --danger-ink: #f4a5a0;
+    --danger-rule: #6e2e2a;
+    --drift-bg: #3a2a10;
+    --drift-ink: #f0b970;
+    --drift-rule: #6b4d1c;
+    --drift-edge: #d98a2b;
+    --unhealthy-bg: #3a1a18;
+    --unhealthy-ink: #f4a5a0;
+    --unhealthy-rule: #6e2e2a;
+    --unhealthy-edge: #c0392b;
+    --unreachable-bg: #302c28;
+    --unreachable-ink: #bdb7ac;
+    --unreachable-rule: #4a453e;
+    --unreachable-edge: #8d857a;
+    --ok-bg: #16301f;
+    --ok-ink: #8fd4a6;
+    --ok-rule: #2c5a3a;
+    --ok-edge: #2f8a4e;
+    --unknown-bg: #2a2622;
+    --unknown-ink: #aeaaa2;
+    --unknown-rule: #403b35;
+    --unknown-edge: #b3aca2;
+    --ring: 0 0 0 3px rgba(138, 180, 248, 0.35);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+    --popover-bg: #2b2825;
+    --accent-bg: #353128;
+    --lift-raised: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.45);
+    --card-raised: #332f2a;
+  }
+}
+
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+             "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+  --text-2xl:  1.5rem;
+  --text-xl:   1.25rem;
+  --text-base: 1rem;
+  --text-sm:   0.875rem;
+  --text-xs:   0.75rem;
+  --radius-card:    0.75rem;
+  --radius-control: 0.5rem;
+  --radius-pill:    999px;
+  --radius-focus:   0.1875rem;
+  --radius-dot:      999px;
+  --radius-hairline: 0.125rem;
+  --line-gold:   3px;
+  --line-status: 4px;
+  --space-xxs: 0.125rem;
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  0.75rem;
+  --space-lg:  1rem;
+  --space-xl:  1.5rem;
+  --space-xxl: 2rem;
+  --control-md: 2.25rem;
+  --control-sm: 1.75rem;
+  --icon-md: 1rem;
+  --icon-sm: 0.875rem;
+  --lift: 0 1px 2px rgba(42, 39, 36, 0.06);
+}
