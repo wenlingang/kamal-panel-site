@@ -1,30 +1,37 @@
 # kamal-panel-site
 
-[kamal-panel](https://github.com/wenlingang/kamal-panel) 的宣传官网，发布在
-<https://wenlingang.github.io/kamal-panel-site/>。
+**English** | [简体中文](README.zh-CN.md)
 
-- `site/`：纯静态页面，英文在 `/`，中文在 `/zh-CN/`，没有构建步骤。
-- `site/docs/`、`site/zh-CN/docs/`：使用文档（安全边界、部署、角色、写操作、部署上报、本地开发）。面板仓库的 README 只留快速开始，详细说明以这里为准。
-- `site/assets/tokens.css`：颜色、字号、间距变量，抄自面板的
-  `app/assets/stylesheets/application.css` 里的 `:root` 与深色主题块。面板改了 token 要手工同步。
-- `site/assets/screenshots/`：面板截图（1440 宽、2x，浅色深色各一套），用演示数据截取，需手工更新。
+The website for [kamal-panel](https://github.com/wenlingang/kamal-panel), published at
+<https://wenlingang.github.io/kamal-panel-site/>.
 
-## 本地预览
+- `site/` — plain static pages, English at `/` and Chinese at `/zh-CN/`. No build step.
+- `site/docs/`, `site/zh-CN/docs/` — the user documentation (security posture, deployment,
+  roles, write operations, deploy reporting, development). The panel's README only keeps a
+  quick start; these pages are the reference.
+- `site/assets/tokens.css` — colour, type and spacing variables, copied from the `:root` and
+  dark-theme blocks of the panel's `app/assets/stylesheets/application.css`. Copy them again
+  by hand when the panel's tokens change.
+- `site/assets/screenshots/` — panel screenshots (1440 wide, 2x, light and dark), taken from
+  demo data. Update them by hand.
+
+## Local preview
 
 ```sh
-python3 -m http.server 8000   # 打开 http://localhost:8000/site/
+python3 -m http.server 8000   # then open http://localhost:8000/site/
 ```
 
-## 版式检查
+## Layout check
 
 ```sh
 npm install && npx playwright install chromium
-npm run check   # 两页 × 375/1440 × 浅/深色：无横向滚动、无资源加载失败
+npm run check   # 4 pages × 375/1440 × light/dark: no horizontal scroll, no failed assets
 ```
 
-## 发布
+## Publishing
 
-push 到 `main` 且 `site/**` 有变动时，`.github/workflows/pages.yml` 先检查站内链接，再发布到 GitHub Pages。
+A push to `main` that touches `site/**` runs `.github/workflows/pages.yml`, which checks the
+site's internal links and then deploys to GitHub Pages.
 
 ## License
 
