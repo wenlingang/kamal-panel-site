@@ -31,7 +31,8 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: check
     runs-on: ubuntu-latest
-    # 并发组只放部署：放在 workflow 级会让 PR 检查把排队中的部署顶掉。
+    # Only the deploy job joins the pages group: at workflow level a PR check could
+    # bump a queued deploy out of the group.
     concurrency:
       group: pages
       cancel-in-progress: false

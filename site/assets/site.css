@@ -1,5 +1,5 @@
-/* 宣传站版式。颜色、字体、圆角、间距一律取 tokens.css（与面板同源），
-   这里只补面板用不到的展示级字号和版心宽度。 */
+/* Site layout. Colours, fonts, radii and spacing all come from tokens.css (shared with
+   the panel); this file only adds display sizes and the page width the panel never needs. */
 :root {
   --site-width: 72rem;
   --site-display: clamp(2rem, 1.2rem + 3.2vw, 3.25rem);
@@ -77,7 +77,8 @@ h3 { margin: 0 0 var(--space-sm); }
 .site-footer .wrap { display: flex; flex-wrap: wrap; gap: var(--space-lg); }
 .site-footer a { color: inherit; }
 
-/* 文档页：左侧目录 + 正文。目录只在宽屏时钉住，窄屏时排在正文上方。 */
+/* Docs page: table of contents + article. The TOC is sticky only on wide screens;
+   on narrow ones it sits above the article. */
 .docs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-xl); padding-block: var(--space-xxl); }
 .toc p { margin: 0 0 var(--space-sm); color: var(--ink-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .toc ol { display: grid; gap: var(--space-xs); margin: 0; padding: 0; list-style: none; }

@@ -1,4 +1,5 @@
-/* 由 script/site/sync_tokens 从 app/assets/stylesheets/application.css 生成，不要手改。 */
+/* Copied from kamal-panel's app/assets/stylesheets/application.css (the :root and dark-theme
+   blocks only). Don't edit here — copy the blocks again when the panel's tokens change. */
 
 :root {
   --surface: #f6f4ef;

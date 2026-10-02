@@ -1,4 +1,5 @@
-// 复制 hero 里的 docker run。file:// 或无权限时剪贴板会拒绝，按钮如实说失败。
+// Copies the install command in the hero. The clipboard refuses under file:// or without
+// permission; the button then says so instead of pretending it worked.
 document.querySelectorAll("[data-copy]").forEach((button) => {
   button.addEventListener("click", async () => {
     const text = document.getElementById(button.dataset.copy).innerText;

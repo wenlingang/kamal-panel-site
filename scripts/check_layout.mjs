@@ -1,4 +1,5 @@
-// 两页 × 375/1440 × 浅色/深色：不许横向滚动，不许有裂图。截图留在 tmp/site/review/ 供人工看。
+// Every page × 375/1440 × light/dark: no horizontal scroll, no broken assets.
+// Full-page screenshots are left in tmp/review/ for a human look.
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 
@@ -14,7 +15,8 @@ for (const width of [375, 1440]) {
   for (const colorScheme of ["light", "dark"]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme });
     const page = await context.newPage();
-    // 用失败的请求判断裂图，不用 naturalWidth：只有 viewBox 的 SVG 在 Chromium 里 naturalWidth 恒为 0。
+    // Detect broken assets from failed requests, not naturalWidth: an SVG with only a
+    // viewBox always reports naturalWidth 0 in Chromium.
     const failedRequests = [];
     page.on("requestfailed", (request) => failedRequests.push(request.url()));
 
