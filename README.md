@@ -4,6 +4,7 @@
 <https://wenlingang.github.io/kamal-panel-site/>。
 
 - `site/`：纯静态页面，英文在 `/`，中文在 `/zh-CN/`，没有构建步骤。
+- `site/docs/`、`site/zh-CN/docs/`：使用文档（安全边界、部署、角色、写操作、部署上报、本地开发）。面板仓库的 README 只留快速开始，详细说明以这里为准。
 - `site/assets/tokens.css`：颜色、字号、间距变量，抄自面板的
   `app/assets/stylesheets/application.css` 里的 `:root` 与深色主题块。面板改了 token 要手工同步。
 - `site/assets/screenshots/`：面板截图（1440 宽、2x，浅色深色各一套），用演示数据截取，需手工更新。

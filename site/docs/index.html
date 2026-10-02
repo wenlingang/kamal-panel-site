@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation — kamal-panel</title>
+  <meta name="description" content="How to deploy kamal-panel, what each role may do, how write operations run, deploy reporting, and local development.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="alternate" hreflang="zh-CN" href="../zh-CN/docs/">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/tokens.css">
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="wrap">
+      <a class="brand" href="../"><img src="../assets/icon.svg" alt="">kamal-panel</a>
+      <a href="./" aria-current="page">Docs</a>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="../zh-CN/docs/" hreflang="zh-CN" lang="zh-CN">中文</a>
+    </div>
+  </header>
+
+  <main class="docs wrap">
+    <nav class="toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#security">Security posture</a></li>
+          <li><a href="#deploy">Deploying the panel</a></li>
+          <li><a href="#roles">Roles</a></li>
+          <li><a href="#writes">How the panel performs write operations</a></li>
+          <li><a href="#deploy-reporting">Deploy reporting (optional)</a></li>
+          <li><a href="#not-doing">What it deliberately does not do</a></li>
+          <li><a href="#scale">Scale ceiling</a></li>
+          <li><a href="#development">Development</a></li>
+      </ol>
+    </nav>
+    <article class="prose">
+      <h1>Documentation</h1>
+<p>A read-only(-ish) control panel for <a href="https://kamal-deploy.org/">Kamal</a> deployments: an Application × Host overview that answers "is anything broken?" in a few seconds, without you having to SSH into every box and run <code>kamal app details</code> by hand.</p>
+<p>kamal-panel does <strong>not</strong> replace Kamal. It reads the state Kamal already produces (<code>docker ps</code>, <code>kamal-proxy list --json</code>) over SSH and renders it. Deploys still happen via <code>kamal deploy</code> from CI, exactly as before.</p>
+<section><h2 id="security">Security posture</h2>
+<blockquote>
+<p><strong>The panel's security level equals the security level of every server it manages.</strong> Anyone who can reach the panel and read its database can, transitively, act on your infrastructure. Treat it with the same care as an SSH private key.</p>
+</blockquote>
+<ul>
+<li><strong>Every page requires a signed-in user.</strong> There are three roles — <strong>admin</strong>, <strong>developer</strong> and <strong>ops</strong> — see <a href="#roles">Roles</a>. <code>POST /apps</code> (the "add an application" endpoint), credential management and people management all require <strong>admin</strong>; action endpoints require admin, or developer membership on that application. See <a href="#first-admin">The first admin account</a> for how to create it. SSO is out of scope.</li>
+<li><strong>Adding an Application is code execution, not configuration.</strong> Parsing a pasted <code>deploy.yml</code> requires evaluating ERB and then <code>YAML.unsafe_load</code>-ing the result — that's how Kamal itself works, and there's no way around it without losing ERB support. This panel does that parsing in an isolated, resource- and time-limited subprocess rather than in the web or job process , but the practical consequence stands: <strong>anyone who can submit a <code>deploy.yml</code> to this panel can run arbitrary Ruby on the host it's deployed on.</strong> Don't let untrusted users near the "add application" form.</li>
+<li>SSH private keys are encrypted at rest (Rails 8 Active Record encryption) and are <strong>write-only</strong>: the UI never displays or downloads a stored key, only its fingerprint.</li>
+</ul>
+</section>
+<section><h2 id="deploy">Deploying the panel</h2>
+<p>The panel deploys with Kamal, like anything else. <code>config/deploy.yml</code> in this repo is a working configuration with placeholders — <code>image</code>, <code>servers.web</code> and <code>proxy.host</code> are the three lines you have to change.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># One-time: generate the Active Record encryption keys and keep them somewhere safe</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> db:encryption:init</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Every deploy reads these from your shell (see .kamal/secrets)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KAMAL_REGISTRY_USERNAME</span><span class="op">=</span>your-github-user</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KAMAL_REGISTRY_PASSWORD</span><span class="op">=&lt;</span>a PAT with write:packages<span class="op">&gt;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AR_ENCRYPTION_PRIMARY_KEY</span><span class="op">=</span>... <span class="va">AR_ENCRYPTION_DETERMINISTIC_KEY</span><span class="op">=</span>... <span class="va">AR_ENCRYPTION_KEY_DERIVATION_SALT</span><span class="op">=</span>...</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/kamal</span> setup     <span class="co"># first time</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/kamal</span> deploy    <span class="co"># thereafter</span></span></code></pre></div>
+<p>Two things about this deployment are not incidental:</p>
+<ul>
+<li><strong>It is single-machine by design.</strong> State lives in SQLite and Solid Queue runs inside Puma. Adding a second <code>web</code> host does not give you a sturdier panel; it gives you two panels each holding half the truth and unaware of the other.</li>
+<li><strong>The storage volume holds encrypted SSH private keys.</strong> Backing it up is backing up the access credentials to every server the panel manages. Treat the backup with the care you would treat those keys — and note that losing the three <code>AR_ENCRYPTION_*</code> values makes that volume permanently undecryptable, which means re-entering every key.</li>
+</ul>
+<p><code>.kamal/hooks/pre-deploy</code> and <code>post-deploy</code> in this repo are the deploy-reporting snippets from <a href="#deploy-reporting">Deploy reporting</a>, in reusable form: they read <code>PANEL_URL</code> and <code>PANEL_TOKEN</code> from the environment and exit quietly when those are unset, so a repo that hasn't been wired to a panel doesn't fire requests at nothing on every deploy.</p>
+<h3 id="first-admin">The first admin account</h3>
+<p>There is no default password, ever — a panel that ships with a known credential is worse than one with no auth, because it looks protected. The first <code>admin</code> account is instead created from environment variables at seed time:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">KAMAL_PANEL_ADMIN_EMAIL</span><span class="op">=</span>you@example.com <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="va">KAMAL_PANEL_ADMIN_PASSWORD</span><span class="op">=&lt;</span>a <span class="ex">strong,</span> unique password<span class="op">&gt;</span> <span class="dt">\</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>bin/rails db:seed</span></code></pre></div>
+<p><code>db/seeds.rb</code> is idempotent (<code>find_or_create_by!</code> on the email), so re-running <code>db:seed</code> on redeploy is safe and won't reset the password of an already-existing account. If <code>KAMAL_PANEL_ADMIN_EMAIL</code> is unset, seeding does nothing — no account, <code>admin</code> or otherwise, is ever created implicitly.</p>
+<p>Once the first admin exists, further people are managed in the panel itself, under <strong>People</strong> (<code>/users</code>, admin-only): create accounts, set roles, assign per-application membership, and deactivate. There is deliberately <strong>no delete</strong> — audit rows reference <code>users.id</code> and the audit log is undeletable, so a departing user is <em>deactivated</em>, which also destroys their live sessions immediately. There is no self-serve sign-up flow, also deliberately.</p>
+<h3 id="self-manage">Don't manage the panel with itself</h3>
+<p>Adding the panel to its own application list is a foot-gun, and the panel does not stop you — so this is the warning instead.</p>
+<p>Restarting or stopping the panel <em>from</em> the panel kills the process midway through its own command. What you are left with: an audit entry frozen at <code>pending</code>, the live output pane cut off mid-line, and possibly Kamal's deploy lock still held on the primary host, which someone then has to force-unlock by hand. The <code>pending</code> row is not corruption — it is exactly what the audit design promises ("someone initiated this operation"), and here it is the only trace of what happened.</p>
+<p>If you want the panel's own deploy history in the panel, you have to register it as an application, and then those action buttons exist for it too. That is the trade-off; make it knowingly. Deploy the panel from your workstation with <code>bin/kamal deploy</code> instead.</p>
+</section>
+<section><h2 id="roles">Roles</h2>
+<p>Every signed-in user can see every application. What differs is what they may <em>do</em>.</p>
+<ul>
+<li><strong>admin</strong> — everything: add and deactivate applications, manage SSH and registry credentials, manage people, assign credentials to an application, and run every action on any application.</li>
+<li><strong>developer</strong> — can roll back, restart, stop, start and force-unlock a stale deploy lock, but <strong>only on the applications they are a member of</strong>. Membership is assigned per application by an admin. On an application they don't belong to, a developer sees the same read-only view an <code>ops</code> user does.</li>
+<li><strong>ops</strong> — read-only everywhere, with one exception: <code>ops</code> can run the non-mutating <strong>logs</strong> action on any application. No rollback, restart, stop, start or force-unlock, anywhere.</li>
+</ul>
+<p>The panel <strong>hides</strong> what you may not use rather than greying it out — buttons and nav entries alike — so nobody has to guess what they're allowed to do. A deactivated application accepts no actions from anyone, admin included.</p>
+<blockquote>
+<p><strong>Adding an application is equivalent to running code on the panel's own host.</strong> A pasted <code>deploy.yml</code> gets ERB-evaluated (see <a href="#security">Security posture</a>), which is why that endpoint is admin-only.</p>
+</blockquote>
+<p>Destructive actions need more than the role: the affected hosts and roles are shown before you commit, and rollback and force-unlock additionally require typing the application's name by hand. Every action is written to the audit log <strong>before</strong> it runs (<code>pending</code>), and the log cannot be deleted from the UI or through Active Record.</p>
+</section>
+<section><h2 id="writes">How the panel performs write operations</h2>
+<p>The panel <strong>never assembles remote commands itself.</strong> Rollback, restart, stop, start and force-unlock all run the real <code>kamal</code> CLI in a restricted subprocess, so behaviour matches what you'd get typing <code>kamal rollback</code> yourself — including your own pre/post-deploy hooks, the <code>kamal-proxy</code> route switch, and the health checks. Re-implementing that on top of <code>Kamal::Commands::App</code> would mean maintaining a second implementation that has to agree with Kamal forever.</p>
+<p>Two consequences worth knowing:</p>
+<ul>
+<li>The private key is injected through a <strong>fresh <code>ssh-agent</code> per invocation</strong> (<code>ssh-add -</code> reading from stdin); it is never written to disk, not even to a 0600 temp file.</li>
+<li>The action set is <strong>closed and defined in code</strong> (<code>app/services/actions/</code>). There is no free-text command input, and adding one would undo every other security decision here.</li>
+</ul>
+<p>Because the panel doesn't trust a command's exit status as the final word, finishing an action triggers a short burst of polling: the answer to "did it work?" comes from fresh <code>docker ps</code> observations, not from the CLI's return code.</p>
+<p>Rollback only offers versions it can prove are rollback-able: <code>kamal rollback</code> refuses unless that version's container still exists on every host, and the panel already holds a full <code>docker ps --all</code> per host — so unavailable versions are listed greyed out, naming the host where the container was already pruned, instead of failing after you click.</p>
+</section>
+<section><h2 id="deploy-reporting">Deploy reporting (optional)</h2>
+<p>SSH polling answers "what is running right now". It cannot answer "who deployed this, when, and did the previous attempt fail?" — a failed deploy leaves the running version unchanged, so polling sees nothing at all.</p>
+<p>Kamal already runs your <code>.kamal/hooks/*</code> during a deploy and hands them <code>KAMAL_SERVICE</code>, <code>KAMAL_VERSION</code>, <code>KAMAL_PERFORMER</code>, <code>KAMAL_DESTINATION</code>, <code>KAMAL_RECORDED_AT</code> and <code>KAMAL_COMMAND</code>. The panel gives you two <code>curl</code> snippets — one for <code>pre-deploy</code>, one for <code>post-deploy</code> — generated per application from its detail page, and stores what they report as deploy history.</p>
+<p><strong>This is optional.</strong> Without it everything else works; you just don't get deploy history, and the panel can't tell you "this version was reported deployed but never showed up on any machine".</p>
+<p>Two properties of the generated snippets are non-negotiable, and you should check they survive any edit you make:</p>
+<ul>
+<li><code>--max-time 5</code> and a trailing <code>|| true</code>. <strong>The panel going down or getting slow must never fail or stall your deploy.</strong></li>
+<li>The hook files need the executable bit (<code>chmod +x</code>) — Kamal runs them as executables.</li>
+</ul>
+<p>The reporting token is per application and is shown <strong>once</strong>, at generation time; the panel stores only its SHA256 digest and cannot show it to you again. Regenerating invalidates the previous one immediately.</p>
+<p>When a report says a version deployed successfully but no machine is observed running it within 90 seconds, the panel says so on the application page rather than picking one of the two sources to trust. The warning clears itself once the version is observed, and the history row keeps the delay — so "every deploy takes four minutes to actually show up" stays visible as a pattern.</p>
+<p>Even without the hooks you get <em>some</em> history: every poll compares the version running on each host, and when all of them converge on a version different from the last one, the panel records that as an inferred deployment. That gives you "something was deployed, and when" — but not who did it, not the command, and not failed deploys, since a failed deploy leaves the running version unchanged. Those three only come from the hooks.</p>
+</section>
+<section><h2 id="not-doing">What it deliberately does not do</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Not doing</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Building or publishing new versions</td>
+<td>The panel never touches your source code. New builds come from CI running <code>kamal deploy</code>.</td>
+</tr>
+<tr>
+<td>Git integration</td>
+<td><code>deploy.yml</code> is pasted in by hand. The panel holds no git credentials, ever.</td>
+</tr>
+<tr>
+<td><code>kamal app exec</code> / arbitrary remote shell</td>
+<td>This is the one feature that would turn the panel into a web-based remote shell and invalidate every other security decision in this project. It is a deliberate omission, not a TODO.</td>
+</tr>
+<tr>
+<td>Kamal 1.x support</td>
+<td>Only <strong>Kamal 2+</strong> is supported. Kamal 1.x used Traefik instead of <code>kamal-proxy</code> and has a different container-label model, deploy-lock format, and routing story — supporting both would mean maintaining two parallel collection/execution paths.</td>
+</tr>
+<tr>
+<td>SSO</td>
+<td>Accounts live in the panel's own database. There are three roles (admin, developer, ops) plus per-application membership for developers — no external identity provider.</td>
+</tr>
+<tr>
+<td>Fleets over ~50 hosts</td>
+<td>See <a href="#scale">Scale ceiling</a>.</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section><h2 id="scale">Scale ceiling</h2>
+<p>This design targets <strong>up to ~50 hosts</strong>. Every poll fans out one SSH connection per configured host per managed app; past roughly 50 hosts that fan-out becomes the bottleneck, and the right fix at that point is a different architecture (e.g. an agent), not a bigger box. If you're operating a fleet near or beyond that size, this tool is not (yet) for you.</p>
+</section>
+<section><h2 id="development">Development</h2>
+<h3>1. Ruby &amp; dependencies</h3>
+<p>Ruby version: see <code>.ruby-version</code>. Then:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/setup</span></span></code></pre></div>
+<h3>2. Active Record encryption credentials (required)</h3>
+<p>SSH private keys are stored via Rails 8's <code>active_record_encryption</code>, whose keys are read <strong>only from environment variables / Rails credentials</strong>, never hardcoded. Without this step you cannot save an SSH private key, which means you cannot complete onboarding an application in the UI at all:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> db:encryption:init</span></code></pre></div>
+<p>Follow the command's output to add the generated keys to your development credentials (<code>bin/rails credentials:edit --environment development</code>) or to the corresponding <code>AR_ENCRYPTION_*</code> environment variables (see <code>config/application.rb</code>).</p>
+<h3>3. Database</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> db:prepare</span></code></pre></div>
+<h3>4. Demo data (optional, but recommended on a first look)</h3>
+<p>A freshly installed panel is a blank page, and the whole point of this thing is what it looks like <em>when something is wrong</em>. One command fills the development database with five applications covering every state — healthy, version drift, an unhealthy container, an unreachable host, and one never polled — plus both kinds of reconciliation alert, deploy history from both sources, and audit entries that succeeded, failed and are still running:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> demo:seed</span></code></pre></div>
+<p>It refuses to run outside development, and refuses to run twice (audit logs are undeletable by design, so there is no "clear and re-seed" — use <code>bin/rails db:reset</code>).</p>
+<h3 id="tests">Running the test suite</h3>
+<p>The test suite exercises real SSH against two containerized "fake hosts" that stand in for machines running Kamal-deployed containers plus <code>kamal-proxy</code>. You need Docker running locally.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose <span class="at">-f</span> docker-compose.test.yml up <span class="at">-d</span> <span class="at">--build</span></span></code></pre></div>
+<p>Wait for both nodes to come up (the compose file exposes node-1 on <code>localhost:2201</code> and node-2 on <code>localhost:2202</code>); see <a href="https://github.com/wenlingang/kamal-panel/blob/main/test/fake_host/README.md"><code>test/fake_host/README.md</code></a> for details on the fixture itself, including why the checked-in test SSH key needs <code>chmod 600</code> after a fresh clone before the system <code>ssh</code> client will accept it.</p>
+<p>Then run the whole suite:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> test:all</span></code></pre></div>
+<p><strong>Run this in the foreground, as a single process.</strong> Two things about this suite are not optional:</p>
+<ul>
+<li><strong>Never trigger a poll against the test database via <code>bin/rails runner</code> while <code>RAILS_ENV=test</code>.</strong> <code>bin/rails runner</code> boots a <em>separate</em> process from the test run; anything it writes lands in the same SQLite test database the test suite is using and will corrupt whatever test happens to be running concurrently. If you need to experiment against the test fixtures, do it inside <code>bin/rails console -e test</code> sequentially, never in parallel with <code>bin/rails test</code>.</li>
+<li><strong>Don't parallelize the test run.</strong> The suite relies on SQLite's single-writer semantics for a few things (polling de-duplication, for one) and on exclusive access to the fake-host containers (some tests genuinely stop/start a container to simulate an unreachable host). Running workers in parallel, or running another <code>bin/rails</code> process against the test database at the same time, will produce flaky, hard-to-reproduce failures that have nothing to do with the code you changed.</li>
+</ul>
+<p><code>bin/rails test</code> alone does <strong>not</strong> include the system tests (Rails' default excludes <code>test/system</code>); use <code>bin/rails test:all</code> (or <code>bin/rails test:system</code> in addition to <code>bin/rails test</code>) if you want the full picture, which is also what CI runs.</p>
+</section>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>kamal-panel</span>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="https://kamal-deploy.org/">Kamal</a>
+      <a href="https://github.com/wenlingang/kamal-panel/blob/main/LICENSE">MIT License</a>
+    </div>
+  </footer>
+</body>
+</html>

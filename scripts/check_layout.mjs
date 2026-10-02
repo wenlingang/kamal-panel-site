@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 
 const root = new URL("../site/", import.meta.url);
 const out = new URL("../tmp/review/", import.meta.url).pathname;
-const pages = ["index.html", "zh-CN/index.html"];
+const pages = ["index.html", "zh-CN/index.html", "docs/index.html", "zh-CN/docs/index.html"];
 mkdirSync(out, { recursive: true });
 
 let failed = false;
@@ -30,7 +30,7 @@ for (const width of [375, 1440]) {
       const broken = failedRequests.splice(0).filter((url) => url.startsWith("file:"));
       if (broken.length) { console.error(`${label}：资源没加载 ${broken.join(", ")}`); failed = true; }
 
-      await page.screenshot({ path: `${out}${p.replace("/", "_")}-${width}-${colorScheme}.png`, fullPage: true });
+      await page.screenshot({ path: `${out}${p.replaceAll("/", "_")}-${width}-${colorScheme}.png`, fullPage: true });
     }
     await context.close();
   }

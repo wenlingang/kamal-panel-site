@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文档 — kamal-panel</title>
+  <meta name="description" content="kamal-panel 的部署方法、各角色的权限、写操作如何执行、部署上报，以及本地开发。">
+  <meta name="color-scheme" content="light dark">
+  <link rel="alternate" hreflang="en" href="../../docs/">
+  <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/tokens.css">
+  <link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="wrap">
+      <a class="brand" href="../"><img src="../../assets/icon.svg" alt="">kamal-panel</a>
+      <a href="./" aria-current="page">文档</a>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="../../docs/" hreflang="en" lang="en">English</a>
+    </div>
+  </header>
+
+  <main class="docs wrap">
+    <nav class="toc" aria-label="本页目录">
+      <p>本页目录</p>
+      <ol>
+          <li><a href="#security">安全边界</a></li>
+          <li><a href="#deploy">部署面板</a></li>
+          <li><a href="#roles">角色</a></li>
+          <li><a href="#writes">面板是怎么执行写操作的</a></li>
+          <li><a href="#deploy-reporting">部署上报（可选）</a></li>
+          <li><a href="#not-doing">刻意不做的事</a></li>
+          <li><a href="#scale">规模上限</a></li>
+          <li><a href="#development">本地开发</a></li>
+      </ol>
+    </nav>
+    <article class="prose">
+      <h1>文档</h1>
+<p>一个（基本上）只读的 <a href="https://kamal-deploy.org/">Kamal</a> 部署控制面板：用一张「应用 × 主机」总览表，几秒钟回答「有没有哪里出问题了」，不用再挨个 SSH 上机器手敲 <code>kamal app details</code>。</p>
+<p>kamal-panel <strong>不是</strong> Kamal 的替代品。它通过 SSH 读取 Kamal 本来就会产生的状态（<code>docker ps</code>、<code>kamal-proxy list --json</code>）并把它渲染出来。部署仍然照旧由 CI 执行 <code>kamal deploy</code>。</p>
+<section><h2 id="security">安全边界</h2>
+<blockquote>
+<p><strong>面板的安全级别，等于它所管理的每一台服务器的安全级别。</strong>任何能访问到面板并读到它数据库的人，都可以间接地操作你的基础设施。请把它当作一把 SSH 私钥来对待。</p>
+</blockquote>
+<ul>
+<li><strong>每个页面都要求已登录用户。</strong> 共有三种角色 —— <strong>admin</strong>、<strong>developer</strong> 和 <strong>ops</strong>，见<a href="#roles">角色</a>一节。<code>POST /apps</code>（「添加应用」接口）、凭据管理和人员管理都需要 <strong>admin</strong>；动作接口要求 admin，或者是该应用的 developer 成员。第一个账号怎么创建，见<a href="#first-admin">第一个 admin 账号</a>。SSO 不在本项目范围内。</li>
+<li><strong>添加一个应用等于执行代码，而不是填配置。</strong> 解析粘贴进来的 <code>deploy.yml</code> 需要先求值 ERB，再对结果做 <code>YAML.unsafe_load</code> —— Kamal 自己就是这么做的，想保留 ERB 支持就绕不开。本面板把这段解析放在一个隔离的、限制了资源和时间的子进程里执行，但现实后果不变：<strong>任何能向这个面板提交 <code>deploy.yml</code> 的人，都能在面板所在的主机上运行任意 Ruby 代码。</strong> 不要让不受信任的用户接触到「添加应用」表单。</li>
+<li>SSH 私钥在库中是加密存储的（Rails 8 的 Active Record encryption），并且是<strong>只写</strong>的：界面永远不会展示或下载已存储的私钥，只显示它的指纹。</li>
+</ul>
+</section>
+<section><h2 id="deploy">部署面板</h2>
+<p>面板用 Kamal 部署，和别的应用没两样。仓库里的 <code>config/deploy.yml</code> 是一份带占位符的可用配置 —— <code>image</code>、<code>servers.web</code> 和 <code>proxy.host</code> 是你必须改的三行。</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 一次性：生成 Active Record 加密密钥，并妥善保存</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> db:encryption:init</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 每次部署都从你的 shell 读取这些（见 .kamal/secrets）</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KAMAL_REGISTRY_USERNAME</span><span class="op">=</span>your-github-user</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KAMAL_REGISTRY_PASSWORD</span><span class="op">=&lt;</span>一个带 write:packages 权限的 PAT<span class="op">&gt;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AR_ENCRYPTION_PRIMARY_KEY</span><span class="op">=</span>... <span class="va">AR_ENCRYPTION_DETERMINISTIC_KEY</span><span class="op">=</span>... <span class="va">AR_ENCRYPTION_KEY_DERIVATION_SALT</span><span class="op">=</span>...</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/kamal</span> setup     <span class="co"># 首次</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/kamal</span> deploy    <span class="co"># 之后</span></span></code></pre></div>
+<p>关于这套部署，有两点不是偶然：</p>
+<ul>
+<li><strong>它按设计就是单机的。</strong> 状态存在 SQLite 里，Solid Queue 跑在 Puma 进程内。加第二台 <code>web</code> 主机不会让面板更稳，只会让你得到两个各持一半真相、而且互不知情的面板。</li>
+<li><strong>存储卷里放着加密后的 SSH 私钥。</strong> 备份这个卷，等同于备份了通往面板所管理的每一台服务器的访问凭据。请以对待那些私钥的谨慎程度对待这份备份 —— 另外注意，丢失那三个 <code>AR_ENCRYPTION_*</code> 值会让这个卷<strong>永久无法解密</strong>，那意味着每一把私钥都得重新录入。</li>
+</ul>
+<p>仓库里的 <code>.kamal/hooks/pre-deploy</code> 和 <code>post-deploy</code> 就是<a href="#deploy-reporting">部署上报</a>一节里那两段片段的可复用版本：它们从环境变量读取 <code>PANEL_URL</code> 和 <code>PANEL_TOKEN</code>，在这两个变量未设置时静默退出，这样一个还没接入面板的仓库就不会在每次部署时对着空气发请求。</p>
+<h3 id="first-admin">第一个 admin 账号</h3>
+<p>永远不存在默认密码 —— 一个自带公开凭据的面板比完全没有鉴权更糟，因为它看起来是受保护的。第一个 <code>admin</code> 账号改为在灌种子数据时由环境变量创建：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">KAMAL_PANEL_ADMIN_EMAIL</span><span class="op">=</span>you@example.com <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="va">KAMAL_PANEL_ADMIN_PASSWORD</span><span class="op">=&lt;</span>一个强而唯一的密码<span class="op">&gt;</span> <span class="dt">\</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>bin/rails <span class="ex">db:seed</span></span></code></pre></div>
+<p><code>db/seeds.rb</code> 是幂等的（按邮箱做 <code>find_or_create_by!</code>），所以重新部署时再跑一次 <code>db:seed</code> 是安全的，不会重置已存在账号的密码。如果 <code>KAMAL_PANEL_ADMIN_EMAIL</code> 没有设置，灌种子什么也不做 —— 任何账号，无论是不是 <code>admin</code>，都不会被隐式创建。</p>
+<p>第一个 admin 存在之后，后续人员在面板内的<strong>人员</strong>页管理（<code>/users</code>，仅 admin 可见）：新建账号、设置角色、指派按应用的成员关系、停用。这里刻意<strong>没有删除</strong> —— 审计记录引用 <code>users.id</code> 而审计日志不可删除，所以离职的人是被<em>停用</em>，停用会同时立即销毁其已登录会话。同样刻意没有自助注册流程。</p>
+<h3 id="self-manage">不要用面板管理面板自己</h3>
+<p>把面板加进它自己的应用列表是个坑，而面板并不会拦你 —— 所以这里只能用一段警告代替。</p>
+<p><em>从</em>面板里重启或停止面板，会在它执行自己命令的中途把进程杀掉。你会得到：一条永远停在 <code>pending</code> 的审计记录、一个断在半行的实时输出面板，以及可能仍然被持有在主节点上的 Kamal 部署锁，还得有人手动去强制解锁。那条 <code>pending</code> 记录不是数据损坏 —— 它恰恰兑现了审计设计的承诺（「有人发起过这次操作」），而在这种情况下它是唯一留下的痕迹。</p>
+<p>如果你确实想在面板里看到面板自己的部署历史，那就得把它注册为一个应用，届时那些动作按钮对它也同样存在。这是个取舍；请在知情的前提下做决定。部署面板本身，建议在你自己的工作机上用 <code>bin/kamal deploy</code>。</p>
+</section>
+<section><h2 id="roles">角色</h2>
+<p>所有已登录用户都能看到所有应用，区别在于能<em>做</em>什么。</p>
+<ul>
+<li><strong>admin</strong> —— 全部权限：添加和停用应用、管理 SSH 与镜像仓库凭据、管理人员、给应用分配凭据，以及对任意应用执行任意动作。</li>
+<li><strong>developer</strong> —— 可以回滚、重启、停止、启动、强制解除卡住的部署锁，但<strong>仅限于自己是成员的那些应用</strong>。成员关系由 admin 按应用逐个指派。在自己不属于的应用上，developer 看到的和 <code>ops</code> 一样是只读视图。</li>
+<li><strong>ops</strong> —— 全局只读，只有一个例外：<code>ops</code> 可以对任意应用执行非变更类的<strong>日志</strong>动作。回滚、重启、停止、启动、强制解锁，在任何地方都不行。</li>
+</ul>
+<p>面板对你没有权限的东西选择<strong>隐藏</strong>而不是置灰 —— 按钮和导航项都是如此 —— 这样没人需要去猜自己到底能做什么。已停用的应用不接受任何人的动作，admin 也不行。</p>
+<blockquote>
+<p><strong>添加应用等价于在面板自己的主机上执行代码。</strong> 粘贴进来的 <code>deploy.yml</code> 会被 ERB 求值（见<a href="#security">安全边界</a>），这也正是该接口仅限 admin 的原因。</p>
+</blockquote>
+<p>破坏性操作光有角色还不够：提交前会先列出受影响的主机和角色，而回滚与强制解锁还额外要求你手动输入应用名称。每一次动作都会在<strong>执行之前</strong>先写入审计日志（状态 <code>pending</code>），并且这份日志既无法从界面删除，也无法通过 Active Record 删除。</p>
+</section>
+<section><h2 id="writes">面板是怎么执行写操作的</h2>
+<p>面板<strong>从不自己拼装远程命令</strong>。回滚、重启、停止、启动、强制解锁，全部是在一个受限子进程里调用真正的 <code>kamal</code> CLI，因此行为与你自己敲 <code>kamal rollback</code> 完全一致 —— 包括你自己的 pre/post-deploy 钩子、<code>kamal-proxy</code> 的路由切换，以及健康检查。如果基于 <code>Kamal::Commands::App</code> 重新实现一遍，就等于要长期维护第二套必须永远和 Kamal 保持一致的实现。</p>
+<p>有两个后果值得知道：</p>
+<ul>
+<li>私钥是通过<strong>每次调用新建的 <code>ssh-agent</code></strong> 注入的（<code>ssh-add -</code> 从标准输入读取）；它从不落盘，连 0600 权限的临时文件都不写。</li>
+<li>动作集合是<strong>封闭的、写死在代码里的</strong>（<code>app/services/actions/</code>）。没有自由文本命令输入框，加一个就会让这里所有其他安全决策失效。</li>
+</ul>
+<p>因为面板不把命令的退出码当作最终结论，动作结束后会触发一小段密集轮询：「到底成没成功」这个答案来自新鲜的 <code>docker ps</code> 观测结果，而不是 CLI 的返回码。</p>
+<p>回滚只会列出它能证明可回滚的版本：<code>kamal rollback</code> 要求那个版本的容器在<strong>每一台</strong>主机上都还在，否则会拒绝执行；而面板本来就持有每台主机完整的 <code>docker ps --all</code> —— 所以不可用的版本会以置灰形式列出，并指明容器已经在哪台主机上被清理掉了，而不是等你点下去之后才报错。</p>
+</section>
+<section><h2 id="deploy-reporting">部署上报（可选）</h2>
+<p>SSH 轮询能回答「现在跑着什么」，但回答不了「这是谁部署的、什么时候、上一次是不是失败了」—— 一次失败的部署不会改变正在运行的版本，所以轮询根本看不到任何变化。</p>
+<p>Kamal 在部署过程中本来就会执行你的 <code>.kamal/hooks/*</code>，并传给它们 <code>KAMAL_SERVICE</code>、 <code>KAMAL_VERSION</code>、<code>KAMAL_PERFORMER</code>、<code>KAMAL_DESTINATION</code>、<code>KAMAL_RECORDED_AT</code> 和 <code>KAMAL_COMMAND</code>。面板会在每个应用的详情页为你生成两段 <code>curl</code> 片段 —— 一段给 <code>pre-deploy</code>，一段给 <code>post-deploy</code> —— 并把它们上报的内容存为部署历史。</p>
+<p><strong>这一步是可选的。</strong> 不做也不影响其他功能，只是拿不到部署历史，面板也无法告诉你「这个版本被上报为已部署，但从来没在任何机器上出现过」。</p>
+<p>生成的片段里有两点不可妥协，你做任何修改后都应该检查它们还在：</p>
+<ul>
+<li><code>--max-time 5</code> 和结尾的 <code>|| true</code>。<strong>面板挂掉或者变慢，绝不能让你的部署失败或卡住。</strong></li>
+<li>钩子文件需要可执行位（<code>chmod +x</code>）—— Kamal 是把它们当可执行文件来跑的。</li>
+</ul>
+<p>上报 token 按应用维度生成，并且<strong>只显示一次</strong>，就在生成的那一刻；面板只存它的 SHA256 摘要，无法再次展示给你。重新生成会立即使上一个失效。</p>
+<p>当上报说某个版本部署成功、但 90 秒内没有观测到任何机器在运行它时，面板会在应用页面上直接说明这一点，而不是在两个信息源之间挑一个来相信。一旦观测到该版本，警告会自动消失，但历史记录里会保留这段延迟 —— 这样「每次部署都要四分钟才真正生效」这种规律才能被看见。</p>
+<p>即使不配置钩子，你也能拿到<em>一部分</em>历史：每次轮询都会比对各台主机上运行的版本，当它们全部收敛到一个与上次不同的版本时，面板会把这记录为一次推断出的部署。这能给你「有东西被部署了，以及时间」—— 但没有执行人、没有命令、也没有失败的部署，因为失败的部署不会改变正在运行的版本。这三样只能来自钩子。</p>
+</section>
+<section><h2 id="not-doing">刻意不做的事</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>不做</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>构建或发布新版本</td>
+<td>面板永远不碰你的源代码。新的构建来自 CI 执行 <code>kamal deploy</code>。</td>
+</tr>
+<tr>
+<td>Git 集成</td>
+<td><code>deploy.yml</code> 靠手工粘贴。面板从不持有任何 git 凭据。</td>
+</tr>
+<tr>
+<td><code>kamal app exec</code> / 任意远程 shell</td>
+<td>这是唯一一个会把面板变成「网页版远程 shell」、并让本项目其他所有安全决策统统作废的功能。这是刻意的省略，不是待办事项。</td>
+</tr>
+<tr>
+<td>支持 Kamal 1.x</td>
+<td>只支持 <strong>Kamal 2+</strong>。Kamal 1.x 用的是 Traefik 而不是 <code>kamal-proxy</code>，容器标签模型、部署锁格式和路由方案都不同 —— 两边都支持就意味着要维护两套并行的采集与执行路径。</td>
+</tr>
+<tr>
+<td>SSO</td>
+<td>账号存在面板自己的数据库里。共三种角色（admin、developer、ops），外加 developer 的按应用成员关系 —— 不接外部身份提供方。</td>
+</tr>
+<tr>
+<td>超过约 50 台主机的机群</td>
+<td>见<a href="#scale">规模上限</a>。</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section><h2 id="scale">规模上限</h2>
+<p>本设计的目标是<strong>最多约 50 台主机</strong>。每次轮询都会为每个受管应用的每台已配置主机拉起一条 SSH 连接；超过大约 50 台之后，这种扇出就会成为瓶颈，而那时正确的解法是换一种架构（比如上 agent），而不是换一台更大的机器。如果你的机群规模接近或超过这个量级，这个工具（暂时）不适合你。</p>
+</section>
+<section><h2 id="development">本地开发</h2>
+<h3>1. Ruby 与依赖</h3>
+<p>Ruby 版本见 <code>.ruby-version</code>。然后：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/setup</span></span></code></pre></div>
+<h3>2. Active Record 加密凭据（必须）</h3>
+<p>SSH 私钥通过 Rails 8 的 <code>active_record_encryption</code> 存储，而它的密钥<strong>只从环境变量 / Rails credentials 读取</strong>，绝不硬编码。跳过这一步你就无法保存 SSH 私钥，也就意味着根本无法在界面上把一个应用接入完成：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> db:encryption:init</span></code></pre></div>
+<p>按命令输出的提示，把生成的密钥写入开发环境的 credentials （<code>bin/rails credentials:edit --environment development</code>），或写入对应的 <code>AR_ENCRYPTION_*</code> 环境变量（见 <code>config/application.rb</code>）。</p>
+<h3>3. 数据库</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> db:prepare</span></code></pre></div>
+<h3>4. 演示数据（可选，但第一次看强烈建议）</h3>
+<p>刚装好的面板是一张空白页，而这个东西的全部意义恰恰在于<em>出问题时</em>它长什么样。一条命令就能把开发数据库填满五个覆盖各种状态的应用 —— 健康、版本漂移、容器不健康、主机不可达、以及从未轮询过 —— 外加两种对账告警、来自两个来源的部署历史，还有成功、失败和仍在运行中的审计记录：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> demo:seed</span></code></pre></div>
+<p>它拒绝在非 development 环境运行，也拒绝运行第二次（审计日志按设计不可删除，所以不存在「清空后重新灌」这种操作 —— 需要的话用 <code>bin/rails db:reset</code>）。</p>
+<h3 id="tests">运行测试</h3>
+<p>测试套件会对两个容器化的「假主机」发起真实 SSH，它们模拟的是跑着 Kamal 部署容器和 <code>kamal-proxy</code> 的机器。因此本地需要有 Docker 在运行。</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose <span class="at">-f</span> docker-compose.test.yml up <span class="at">-d</span> <span class="at">--build</span></span></code></pre></div>
+<p>等两个节点都起来（compose 文件把 node-1 暴露在 <code>localhost:2201</code>、node-2 在 <code>localhost:2202</code>）；关于这套 fixture 本身的细节见 <a href="https://github.com/wenlingang/kamal-panel/blob/main/test/fake_host/README.md"><code>test/fake_host/README.md</code></a>，其中也解释了为什么新克隆仓库后需要对签入的测试 SSH 私钥执行 <code>chmod 600</code>，系统的 <code>ssh</code> 客户端才肯接受它。</p>
+<p>然后跑整个套件：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">bin/rails</span> test:all</span></code></pre></div>
+<p><strong>请在前台、以单进程方式运行。</strong> 这个套件有两条不可商量的约束：</p>
+<ul>
+<li><strong>绝不要在 <code>RAILS_ENV=test</code> 下用 <code>bin/rails runner</code> 对测试数据库触发轮询。</strong> <code>bin/rails runner</code> 会启动一个<em>独立的</em>进程；它写的任何东西都会落进测试套件正在使用的同一个 SQLite 测试库，并破坏当时正在跑的任意一个测试。如果你要拿测试 fixture 做实验，请在 <code>bin/rails console -e test</code> 里串行地做，绝不要和 <code>bin/rails test</code> 并行。</li>
+<li><strong>不要并行跑测试。</strong> 套件有几个地方依赖 SQLite 的单写者语义（比如轮询去重），也依赖对假主机容器的独占访问（有些测试确实会停止/启动容器来模拟主机不可达）。并行开 worker，或者同时让另一个 <code>bin/rails</code> 进程访问测试库，都会产生偶发、难以复现、且与你改的代码毫无关系的失败。</li>
+</ul>
+<p>单跑 <code>bin/rails test</code> <strong>不</strong>包含系统测试（Rails 默认排除 <code>test/system</code>）；想要完整覆盖请用 <code>bin/rails test:all</code>（或者在 <code>bin/rails test</code> 之外再跑 <code>bin/rails test:system</code>），CI 跑的也是这个。</p>
+</section>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>kamal-panel</span>
+      <a href="https://github.com/wenlingang/kamal-panel">GitHub</a>
+      <a href="https://kamal-deploy.org/">Kamal</a>
+      <a href="https://github.com/wenlingang/kamal-panel/blob/main/LICENSE">MIT 协议</a>
+    </div>
+  </footer>
+</body>
+</html>
